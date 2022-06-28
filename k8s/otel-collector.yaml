@@ -1,0 +1,107 @@
+# Otel-Collector ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: otel-collector-configmap
+  namespace: telemetry
+data:
+  otel-collector-config.yml: |-
+    receivers:
+      jaeger:
+        protocols:
+          thrift_http:
+            endpoint: "0.0.0.0:14278" # port opened on the otel collector
+
+      # Dummy receiver that's never used, because a pipeline is required to have one.
+      otlp/spanmetrics:
+        protocols:
+          grpc:
+            endpoint: "localhost:65535"
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+
+      jaeger:
+        endpoint: "jaeger-service:14250"
+        tls:
+          insecure: true
+
+    processors:
+      batch:
+      spanmetrics:
+        metrics_exporter: prometheus
+
+    service:
+      pipelines:
+        traces:
+          receivers: [jaeger]
+          processors: [spanmetrics, batch]
+          exporters: [jaeger]
+        # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
+        # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
+        metrics/spanmetrics:
+          receivers: [otlp/spanmetrics]
+          exporters: [prometheus]
+
+---
+
+# Otel-Collector Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-deployment
+  namespace: telemetry
+  labels:
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - args:
+            - --config
+            - /etc/otelcol/otel-collector-config.yml
+          image: otel/opentelemetry-collector-contrib:latest
+          imagePullPolicy: IfNotPresent
+          name: otel-collector
+          ports:
+            - containerPort: 14278
+            - containerPort: 8889
+          volumeMounts:
+            - mountPath: /etc/otelcol
+              name: otel-collector-volume
+      restartPolicy: Always
+      volumes:
+        - name: otel-collector-volume
+          configMap:
+              name: otel-collector-configmap
+              items:
+                - key: otel-collector-config.yml
+                  path: otel-collector-config.yml
+
+---
+
+# Otel-Collector Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-service
+  namespace: telemetry
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: "14278"
+      port: 14278
+      targetPort: 14278
+    - name: "8889"
+      port: 8889
+      targetPort: 8889

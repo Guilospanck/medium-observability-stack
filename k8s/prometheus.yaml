@@ -1,0 +1,72 @@
+# Prometheus ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: prometheus-configmap
+  namespace: telemetry
+data:
+  prometheus.yml: |-
+    global:
+      scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+
+    scrape_configs:
+      - job_name: aggregated-trace-metrics
+        static_configs:
+        - targets: ['otel-collector-service:8889']
+
+---
+
+# Prometheus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-deployment
+  namespace: telemetry
+  labels:
+    app: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - image: prom/prometheus:latest
+          imagePullPolicy: IfNotPresent
+          name: prometheus
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - mountPath: /etc/prometheus
+              name: prometheus-volume
+      restartPolicy: Always
+      volumes:
+        - name: prometheus-volume
+          configMap:
+              name: prometheus-configmap
+              items:
+                - key: prometheus.yml
+                  path: prometheus.yml
+
+---
+
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-service
+  namespace: telemetry
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - name: "9090"
+      port: 9090
+      targetPort: 9090

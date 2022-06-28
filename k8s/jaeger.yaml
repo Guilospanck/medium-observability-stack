@@ -1,0 +1,106 @@
+# Namespace where the Telemetry will be created
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: telemetry
+
+---
+
+# Jaeger ConfigMap for UI
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-ui-configmap
+  namespace: telemetry
+data:
+  jaeger-ui.json: |-
+    {
+      "monitor": {
+        "menuEnabled": true
+      },
+      "dependencies": {
+        "menuEnabled": true
+      }
+    }
+
+---
+
+# Jaeger Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-deployment
+  namespace: telemetry
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - args:
+            - --query.ui-config
+            - /etc/jaeger/ui/jaeger-ui.json
+          env:
+            - name: METRICS_STORAGE_TYPE
+              value: prometheus
+            - name: PROMETHEUS_SERVER_URL
+              value: http://prometheus-service:9090
+          image: jaegertracing/all-in-one:latest
+          imagePullPolicy: IfNotPresent
+          name: jaeger
+          ports:
+            - containerPort: 14250
+            - containerPort: 14268
+            - containerPort: 6831
+              protocol: UDP
+            - containerPort: 16686
+            - containerPort: 16685
+          volumeMounts:
+            - mountPath: /etc/jaeger/ui
+              name: jaeger-volume
+      restartPolicy: Always
+      volumes:
+        - name: jaeger-volume
+          configMap:
+              name: jaeger-ui-configmap
+              items:
+                - key: jaeger-ui.json
+                  path: jaeger-ui.json
+
+---
+
+# Jaeger Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-service
+  namespace: telemetry
+spec:
+  selector:
+    app: jaeger
+  ports:
+    - name: "14250"
+      port: 14250
+      targetPort: 14250
+    - name: "14268"
+      port: 14268
+      targetPort: 14268
+    - name: "6831"
+      port: 6831
+      protocol: UDP
+      targetPort: 6831
+    - name: "16686"
+      port: 16686
+      targetPort: 16686
+    - name: "16685"
+      port: 16685
+      targetPort: 16685
+
+---
