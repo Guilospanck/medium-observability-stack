@@ -288,7 +288,7 @@ receivers:
   jaeger:
     protocols:
       thrift_http:
-        endpoint: "0.0.0.0:14278"
+        endpoint: "0.0.0.0:14278" # port opened on the otel collector
 
   # Dummy receiver that's never used, because a pipeline is required to have one.
   otlp/spanmetrics:
@@ -300,8 +300,8 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
 
-  jaeger:
-    endpoint: "jaeger:14250" # using the docker-compose name of the jaeger container
+  otlp/jaeger: # Jaeger supports OTLP directly. The default port for OTLP/gRPC is 4317
+    endpoint: "jaeger:4317"
     tls:
       insecure: true
 
@@ -315,7 +315,7 @@ service:
     traces:
       receivers: [jaeger]
       processors: [spanmetrics, batch]
-      exporters: [jaeger]
+      exporters: [otlp/jaeger]
     # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
     # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
     metrics/spanmetrics:
@@ -469,7 +469,7 @@ data:
       jaeger:
         protocols:
           thrift_http:
-            endpoint: "0.0.0.0:14278" 
+            endpoint: "0.0.0.0:14278" # port opened on the otel collector
 
       # Dummy receiver that's never used, because a pipeline is required to have one.
       otlp/spanmetrics:
@@ -481,8 +481,8 @@ data:
       prometheus:
         endpoint: "0.0.0.0:8889"
 
-      jaeger:
-        endpoint: "jaeger-service:14250"
+      otlp/jaeger: # Jaeger supports OTLP directly. The default port for OTLP/gRPC is 4317
+        endpoint: "jaeger-service:4317"
         tls:
           insecure: true
 
@@ -496,7 +496,7 @@ data:
         traces:
           receivers: [jaeger]
           processors: [spanmetrics, batch]
-          exporters: [jaeger]
+          exporters: [otlp/jaeger]
         # The exporter name in this pipeline must match the spanmetrics.metrics_exporter name.
         # The receiver is just a dummy and never used; added to pass validation requiring at least one receiver in a pipeline.
         metrics/spanmetrics:
